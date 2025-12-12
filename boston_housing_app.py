@@ -44,7 +44,9 @@ def load_data():
         # OpenML에서 보스턴 주택 데이터 로드
         boston = fetch_openml(name='boston', version=1, parser='auto')
         X = pd.DataFrame(boston.data, columns=boston.feature_names)
-        y = pd.Series(boston.target, name='MEDV')
+        # 데이터 타입을 숫자형으로 변환 (OpenML에서 문자열로 반환될 수 있음)
+        X = X.astype(float)
+        y = pd.Series(boston.target, name='MEDV').astype(float)
         
         # 전체 데이터프레임 생성
         df = pd.concat([X, y], axis=1)
