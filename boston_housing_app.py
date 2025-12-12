@@ -12,6 +12,33 @@ from io import StringIO
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import platform
+
+# 한글 폰트 설정 (matplotlib)
+def setup_korean_font():
+    """matplotlib 한글 폰트 설정"""
+    import matplotlib.font_manager as fm
+
+    # 운영체제별 폰트 설정
+    system = platform.system()
+
+    if system == 'Windows':
+        plt.rc('font', family='Malgun Gothic')
+    elif system == 'Darwin':  # macOS
+        plt.rc('font', family='AppleGothic')
+    else:  # Linux (Streamlit Cloud)
+        # NanumGothic 폰트 사용 시도
+        try:
+            plt.rc('font', family='NanumGothic')
+        except:
+            # 폰트가 없으면 기본 폰트 사용
+            pass
+
+    # 마이너스 기호 깨짐 방지
+    plt.rcParams['axes.unicode_minus'] = False
+
+# 한글 폰트 설정 적용
+setup_korean_font()
 
 # 페이지 설정
 st.set_page_config(
@@ -231,10 +258,10 @@ with tab1:
         st.metric("가격 표준편차", f"${y.std():.2f}K")
     
     st.subheader("📋 데이터 미리보기")
-    st.dataframe(df.head(10), use_container_width=True)
-    
+    st.dataframe(df.head(10), width='stretch')
+
     st.subheader("📊 기술 통계")
-    st.dataframe(df.describe(), use_container_width=True)
+    st.dataframe(df.describe(), width='stretch')
     
     st.subheader("📉 주요 변수 시각화")
     
@@ -285,7 +312,7 @@ with tab2:
         st.metric("MAE", f"${metrics['test']['MAE']:.4f}K")
     
     st.subheader("📉 회귀 계수 분석")
-    st.dataframe(coefficients, use_container_width=True)
+    st.dataframe(coefficients, width='stretch')
     
     col1, col2 = st.columns(2)
     
@@ -635,7 +662,7 @@ with tab4:
         )
 
         # 트리맵 표시
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         # 요약 통계
         st.markdown("#### 요약 통계")
@@ -688,7 +715,7 @@ with tab4:
         )
         sector_stats = sector_stats.sort_values('평균 변동률 (%)', ascending=False)
 
-        st.dataframe(sector_stats, use_container_width=True)
+        st.dataframe(sector_stats, width='stretch')
 
         # 상위/하위 종목
         st.markdown("#### 상위/하위 변동 종목")
@@ -703,7 +730,7 @@ with tab4:
             top_gainers['PriceChangePct'] = top_gainers['PriceChangePct'].apply(lambda x: f"+{x:.2f}%")
             top_gainers['CurrentPrice'] = top_gainers['CurrentPrice'].apply(lambda x: f"${x:.2f}")
             top_gainers.columns = ['티커', '회사명', '섹터', '변동률', '현재가']
-            st.dataframe(top_gainers, use_container_width=True, hide_index=True)
+            st.dataframe(top_gainers, width='stretch', hide_index=True)
 
         with col2:
             st.markdown("##### 하위 10개 종목 (하락)")
@@ -713,7 +740,7 @@ with tab4:
             top_losers['PriceChangePct'] = top_losers['PriceChangePct'].apply(lambda x: f"{x:.2f}%")
             top_losers['CurrentPrice'] = top_losers['CurrentPrice'].apply(lambda x: f"${x:.2f}")
             top_losers.columns = ['티커', '회사명', '섹터', '변동률', '현재가']
-            st.dataframe(top_losers, use_container_width=True, hide_index=True)
+            st.dataframe(top_losers, width='stretch', hide_index=True)
 
     else:
         st.warning("선택한 필터 조건에 해당하는 데이터가 없습니다. 필터를 조정해주세요.")
