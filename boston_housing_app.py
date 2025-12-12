@@ -9,6 +9,9 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import openai
 from io import StringIO
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
 
 # 페이지 설정
 st.set_page_config(
@@ -94,14 +97,14 @@ def train_model(X, y):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
-    
+
     model = LinearRegression()
     model.fit(X_train, y_train)
-    
+
     # 예측
     y_pred_train = model.predict(X_train)
     y_pred_test = model.predict(X_test)
-    
+
     # 평가 지표
     metrics = {
         'train': {
@@ -115,25 +118,103 @@ def train_model(X, y):
             'MAE': mean_absolute_error(y_test, y_pred_test)
         }
     }
-    
+
     # 계수 정보
     coefficients = pd.DataFrame({
         'Feature': X.columns,
         'Coefficient': model.coef_
     }).sort_values('Coefficient', key=abs, ascending=False)
-    
+
     return model, metrics, coefficients, X_train, X_test, y_train, y_test, y_pred_test
+
+# 주식 데이터 생성 및 캐싱
+@st.cache_data
+def generate_stock_data():
+    """주식 시장 샘플 데이터 생성"""
+    np.random.seed(42)
+
+    # 섹터 및 산업 정의
+    sectors_info = {
+        'Technology': ['Software', 'Hardware', 'Semiconductors', 'IT Services'],
+        'Financials': ['Banks', 'Insurance', 'Asset Management', 'Investment Banking'],
+        'Health Care': ['Pharmaceuticals', 'Biotechnology', 'Medical Devices', 'Health Services'],
+        'Consumer Goods': ['Food & Beverage', 'Household Products', 'Apparel', 'Tobacco'],
+        'Consumer Services': ['Retail', 'Hotels & Restaurants', 'Media', 'Entertainment'],
+        'Industrials': ['Aerospace & Defense', 'Construction', 'Machinery', 'Transportation'],
+        'Basic Materials': ['Chemicals', 'Metals & Mining', 'Paper & Forest', 'Containers'],
+        'Utilities': ['Electric Utilities', 'Gas Utilities', 'Water Utilities', 'Renewable Energy'],
+        'Telecommunications': ['Wireless', 'Fixed Line', 'Internet Services', 'Satellite']
+    }
+
+    # 회사 이름 샘플
+    company_prefixes = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta',
+                       'Iota', 'Kappa', 'Lambda', 'Omega', 'Sigma', 'Nova', 'Stellar',
+                       'Quantum', 'Fusion', 'Phoenix', 'Nexus', 'Zenith', 'Apex', 'Prime',
+                       'Core', 'Global', 'United', 'National', 'International', 'Advanced']
+
+    company_suffixes = ['Corp', 'Inc', 'Ltd', 'Group', 'Holdings', 'Systems', 'Solutions',
+                       'Technologies', 'Industries', 'Enterprises']
+
+    stocks = []
+
+    for sector, industries in sectors_info.items():
+        # 각 섹터별로 기업 수 랜덤 생성 (5-15개)
+        num_companies = np.random.randint(5, 16)
+
+        for _ in range(num_companies):
+            industry = np.random.choice(industries)
+
+            # 회사 이름 생성
+            company_name = f"{np.random.choice(company_prefixes)} {np.random.choice(company_suffixes)}"
+
+            # 티커 생성 (3-4자리 대문자)
+            ticker_length = np.random.choice([3, 4])
+            ticker = ''.join(np.random.choice(list('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), ticker_length))
+
+            # 시가총액 생성 (10억 ~ 2조원, 로그 정규 분포)
+            mkt_value = np.random.lognormal(mean=np.log(100), sigma=1.5) * 1e9
+
+            # 가격 변동률 생성 (-10% ~ +10%, 정규분포)
+            price_change_pct = np.random.normal(0, 3)
+            price_change_pct = np.clip(price_change_pct, -10, 10)
+
+            # 현재 주가 생성
+            current_price = np.random.lognormal(mean=np.log(50), sigma=1.5)
+
+            # 거래량 생성
+            volume = np.random.lognormal(mean=np.log(1000000), sigma=2)
+
+            stocks.append({
+                'Sector': sector,
+                'Industry': industry,
+                'Company': company_name,
+                'Ticker': ticker,
+                'MktValue': mkt_value,
+                'CurrentPrice': current_price,
+                'PriceChangePct': price_change_pct,
+                'Volume': volume,
+                'PE_Ratio': np.random.uniform(5, 50),
+                'DividendYield': np.random.uniform(0, 5)
+            })
+
+    df_stocks = pd.DataFrame(stocks)
+
+    # 중복 티커 제거
+    df_stocks = df_stocks.drop_duplicates(subset='Ticker', keep='first')
+
+    return df_stocks
 
 # 데이터 및 모델 로드
 df, X, y, feature_names = load_data()
 model, metrics, coefficients, X_train, X_test, y_train, y_test, y_pred_test = train_model(X, y)
+df_stocks = generate_stock_data()
 
 # 메인 타이틀
 st.title("🏠 보스턴 주택 가격 분석 AI 챗봇")
 st.markdown("---")
 
 # 탭 생성
-tab1, tab2, tab3 = st.tabs(["📈 데이터 분석", "📊 회귀 분석 결과", "💬 AI 챗봇"])
+tab1, tab2, tab3, tab4 = st.tabs(["📈 데이터 분석", "📊 회귀 분석 결과", "💬 AI 챗봇", "📊 주식 트리맵"])
 
 # 탭 1: 데이터 분석
 with tab1:
@@ -384,6 +465,258 @@ with tab3:
                 "content": "이 모델의 성능을 개선하기 위한 방법을 제안해주세요."
             })
             st.rerun()
+
+# 탭 4: 주식 트리맵
+with tab4:
+    st.header("📊 주식 시장 Position Map")
+
+    # 현재 시간 표시
+    current_time = datetime.now().strftime("%H:%M:%S")
+    st.markdown(f"### Position Map @ {current_time}")
+
+    # 필터 섹션
+    st.markdown("#### 필터 옵션")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        # Industry 필터 (전체 산업 목록)
+        all_industries = sorted(df_stocks['Industry'].unique())
+        selected_industries = st.multiselect(
+            "Industry",
+            options=all_industries,
+            default=all_industries,
+            help="표시할 산업을 선택하세요"
+        )
+
+    with col2:
+        # Sector 필터
+        all_sectors = sorted(df_stocks['Sector'].unique())
+        selected_sectors = st.multiselect(
+            "Sector",
+            options=all_sectors,
+            default=all_sectors,
+            help="표시할 섹터를 선택하세요"
+        )
+
+    with col3:
+        # Mnemonic (티커) 필터
+        all_tickers = sorted(df_stocks['Ticker'].unique())
+        selected_tickers = st.multiselect(
+            "Mnemonic (Ticker)",
+            options=all_tickers,
+            default=[],
+            help="특정 티커만 표시하려면 선택하세요 (선택하지 않으면 전체 표시)"
+        )
+
+    # 데이터 필터링
+    filtered_df = df_stocks.copy()
+
+    if selected_industries:
+        filtered_df = filtered_df[filtered_df['Industry'].isin(selected_industries)]
+
+    if selected_sectors:
+        filtered_df = filtered_df[filtered_df['Sector'].isin(selected_sectors)]
+
+    if selected_tickers:
+        filtered_df = filtered_df[filtered_df['Ticker'].isin(selected_tickers)]
+
+    # Size 및 Color 옵션
+    st.markdown("#### 시각화 옵션")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        size_option = st.selectbox(
+            "Size (크기 기준)",
+            options=['MktValue', 'Volume', 'CurrentPrice'],
+            index=0,
+            help="트리맵 박스 크기를 결정하는 기준"
+        )
+
+    with col2:
+        color_option = st.selectbox(
+            "Color (색상 기준)",
+            options=['PriceChangePct', 'PE_Ratio', 'DividendYield'],
+            index=0,
+            help="색상을 결정하는 기준"
+        )
+
+    # 데이터가 있는 경우에만 트리맵 생성
+    if len(filtered_df) > 0:
+        # 트리맵 생성
+        st.markdown("#### 인터랙티브 트리맵")
+
+        # 색상 범위 설정
+        if color_option == 'PriceChangePct':
+            color_range = [-10, 10]
+            color_scale = 'RdBu'  # 빨강(음수) -> 파랑(양수)
+            color_label = '가격 변동률 (%)'
+        elif color_option == 'PE_Ratio':
+            color_range = [0, 50]
+            color_scale = 'Viridis'
+            color_label = 'P/E Ratio'
+        else:  # DividendYield
+            color_range = [0, 5]
+            color_scale = 'Greens'
+            color_label = '배당 수익률 (%)'
+
+        # 크기 라벨 설정
+        if size_option == 'MktValue':
+            size_label = '시가총액'
+        elif size_option == 'Volume':
+            size_label = '거래량'
+        else:
+            size_label = '현재가'
+
+        # 호버 데이터 준비
+        filtered_df['MktValue_Formatted'] = filtered_df['MktValue'].apply(
+            lambda x: f"${x/1e9:.2f}B" if x >= 1e9 else f"${x/1e6:.2f}M"
+        )
+        filtered_df['Volume_Formatted'] = filtered_df['Volume'].apply(
+            lambda x: f"{x/1e6:.2f}M" if x >= 1e6 else f"{x/1e3:.2f}K"
+        )
+
+        # Plotly 트리맵 생성
+        fig = px.treemap(
+            filtered_df,
+            path=['Sector', 'Industry', 'Ticker'],
+            values=size_option,
+            color=color_option,
+            color_continuous_scale=color_scale,
+            color_continuous_midpoint=0 if color_option == 'PriceChangePct' else None,
+            range_color=color_range,
+            hover_data={
+                'Company': True,
+                'Ticker': True,
+                'MktValue_Formatted': True,
+                'CurrentPrice': ':.2f',
+                'PriceChangePct': ':.2f',
+                'Volume_Formatted': True,
+                'PE_Ratio': ':.2f',
+                'DividendYield': ':.2f',
+                size_option: False,
+                color_option: False
+            },
+            labels={
+                'MktValue_Formatted': '시가총액',
+                'CurrentPrice': '현재가 ($)',
+                'PriceChangePct': '변동률 (%)',
+                'Volume_Formatted': '거래량',
+                'PE_Ratio': 'P/E Ratio',
+                'DividendYield': '배당률 (%)',
+                'Company': '회사명',
+                'Ticker': '티커',
+                'Sector': '섹터',
+                'Industry': '산업'
+            }
+        )
+
+        # 레이아웃 업데이트
+        fig.update_layout(
+            height=800,
+            margin=dict(l=0, r=0, t=50, b=0),
+            coloraxis_colorbar=dict(
+                title=color_label,
+                thickness=15,
+                len=0.7,
+                bgcolor='rgba(255,255,255,0.8)',
+                tickfont=dict(size=10)
+            ),
+            font=dict(size=12)
+        )
+
+        # 트레이스 업데이트 (텍스트 표시)
+        fig.update_traces(
+            textposition="middle center",
+            textfont_size=10,
+            marker=dict(
+                line=dict(width=2, color='white'),
+                cornerradius=5
+            )
+        )
+
+        # 트리맵 표시
+        st.plotly_chart(fig, use_container_width=True)
+
+        # 요약 통계
+        st.markdown("#### 요약 통계")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric(
+                "총 기업 수",
+                len(filtered_df)
+            )
+
+        with col2:
+            total_mkt_cap = filtered_df['MktValue'].sum()
+            st.metric(
+                "총 시가총액",
+                f"${total_mkt_cap/1e12:.2f}T" if total_mkt_cap >= 1e12 else f"${total_mkt_cap/1e9:.2f}B"
+            )
+
+        with col3:
+            avg_change = filtered_df['PriceChangePct'].mean()
+            st.metric(
+                "평균 변동률",
+                f"{avg_change:.2f}%",
+                delta=f"{avg_change:.2f}%"
+            )
+
+        with col4:
+            positive_stocks = len(filtered_df[filtered_df['PriceChangePct'] > 0])
+            st.metric(
+                "상승 종목 비율",
+                f"{(positive_stocks/len(filtered_df)*100):.1f}%"
+            )
+
+        # 섹터별 통계
+        st.markdown("#### 섹터별 상세 통계")
+
+        sector_stats = filtered_df.groupby('Sector').agg({
+            'Ticker': 'count',
+            'MktValue': 'sum',
+            'PriceChangePct': 'mean',
+            'Volume': 'sum'
+        }).round(2)
+
+        sector_stats.columns = ['기업 수', '총 시가총액', '평균 변동률 (%)', '총 거래량']
+        sector_stats['총 시가총액'] = sector_stats['총 시가총액'].apply(
+            lambda x: f"${x/1e9:.2f}B"
+        )
+        sector_stats['총 거래량'] = sector_stats['총 거래량'].apply(
+            lambda x: f"{x/1e6:.2f}M"
+        )
+        sector_stats = sector_stats.sort_values('평균 변동률 (%)', ascending=False)
+
+        st.dataframe(sector_stats, use_container_width=True)
+
+        # 상위/하위 종목
+        st.markdown("#### 상위/하위 변동 종목")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("##### 상위 10개 종목 (상승)")
+            top_gainers = filtered_df.nlargest(10, 'PriceChangePct')[
+                ['Ticker', 'Company', 'Sector', 'PriceChangePct', 'CurrentPrice']
+            ].copy()
+            top_gainers['PriceChangePct'] = top_gainers['PriceChangePct'].apply(lambda x: f"+{x:.2f}%")
+            top_gainers['CurrentPrice'] = top_gainers['CurrentPrice'].apply(lambda x: f"${x:.2f}")
+            top_gainers.columns = ['티커', '회사명', '섹터', '변동률', '현재가']
+            st.dataframe(top_gainers, use_container_width=True, hide_index=True)
+
+        with col2:
+            st.markdown("##### 하위 10개 종목 (하락)")
+            top_losers = filtered_df.nsmallest(10, 'PriceChangePct')[
+                ['Ticker', 'Company', 'Sector', 'PriceChangePct', 'CurrentPrice']
+            ].copy()
+            top_losers['PriceChangePct'] = top_losers['PriceChangePct'].apply(lambda x: f"{x:.2f}%")
+            top_losers['CurrentPrice'] = top_losers['CurrentPrice'].apply(lambda x: f"${x:.2f}")
+            top_losers.columns = ['티커', '회사명', '섹터', '변동률', '현재가']
+            st.dataframe(top_losers, use_container_width=True, hide_index=True)
+
+    else:
+        st.warning("선택한 필터 조건에 해당하는 데이터가 없습니다. 필터를 조정해주세요.")
 
 # 푸터
 st.markdown("---")
